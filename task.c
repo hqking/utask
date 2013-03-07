@@ -104,59 +104,13 @@ static void taskReset(void)
 
 static U32 tickLeft(U32 after, U32 before)
 {
-	U32 left;
+	S32 left;
 	
-	if (after >= before)
-	{
-		if ((after - before) > TICK_ROUND_HALF)
-		{
-			/*
-			 *   before                     after
-			 *     |                          |
-			 *     V                          V
-			 * |==================================|
-			 */
-			left = 0U;
-		}
-		else
-		{
-			/*
-			 *           before after
-			 *             |      |
-			 *             V      V
-			 * |==================================|
-			 */
-			left = after - before;
-		}
-	}
-	else
-	{
-		if ((before - after) >= TICK_ROUND_HALF)
-		{
-			/*
-			 *   after                      before
-			 *     |                          |
-			 *     V                          V
-			 * |==================================|
-			 */
-#ifdef DEBUG
-			left = TICK_ROUND - before + after;
-#else
-			left = after - before;
-#endif
-		}
-		else
-		{
-			/*
-			 *           after  before
-			 *             |      |
-			 *             V      V
-			 * |==================================|
-			 */
-			left = 0U;
-		}
-	}
+	left = (S32)(after - before);
 	
+	if (left < 0L)
+		left = 0L;
+		
 	return left;
 }
 
