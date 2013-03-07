@@ -31,9 +31,6 @@ typedef unsigned int			time_t;
 /******************************************************************************
  * static declaration
 *******************************************************************************/
-#define TICK_ROUND_HALF			0x7fffffffU
-#define TICK_ROUND				0xffffffffU
-
 #define TASK_LOWEST_PRIORITY	0xffffU
 #define TASK_PERIOD_RESERVE		50U		/* 保留给任务调度的开销，5us */
 
@@ -41,25 +38,10 @@ typedef unsigned int			time_t;
 #define TASK_READY				0x40U
 #define TASK_DELAY				0x08U
 
-struct taskCtlBlk
-{
-	time_t until;		/**< 延时运行开始时间，基于systime local时间 */
-	char state;		/**< 运行状态 */
-};
-
-static time_t taskGetTick(void);
-static void taskReset(void);
-static time_t tickLeft(time_t after, time_t before);
-static int taskFindIdle(time_t left);
-static void taskDelayedFlagSet(void);
-static int taskFindPriority(time_t left);
-static void taskWaitEvent(void);
-extern void sysReset(void);
-
 /******************************************************************************
  * static global words
 *******************************************************************************/
-static struct taskCtlBlk g_tasks[PRIORITY_TASK_COUNT];
+static struct tcb g_tasks[PRIORITY_TASK_COUNT];
 static int g_nextPriority;		/**< 下一个需要执行任务的优先级 */
 static time_t g_nextStart;			/**< 下一个需要执行任务的开始时间 */
 
@@ -122,7 +104,7 @@ static BOOLEAN taskAhead(int index, time_t deadLine)
 {
 	BOOLEAN ahead;
 
-	if (tickLeft(deadLine, g_tasks[index].until + g_PriorityTask[index].duration) > TASK_PERIOD_RESERVE)
+	if (tickLeft(deadLine, g_tasks[index].until + g_tasks[index].duration) > TASK_PERIOD_RESERVE)
 	{
 		ahead = TRUE;
 	}
@@ -233,9 +215,9 @@ static void taskDelayedFlagSet(void)
 			if (tickLeft(g_tasks[index].until, now) == 0U)
 			{
 				g_tasks[index].state |= TASK_READY;
-				if (g_PriorityTask[index].circle > 0U)
+				if (g_tasks[index].circle > 0U)
 				{
-					g_tasks[index].until += g_PriorityTask[index].circle;
+					g_tasks[index].until += g_tasks[index].circle;
 				}
 				else
 				{
@@ -264,7 +246,7 @@ static int taskFindPriority(time_t left)
 			&& ((g_tasks[index].state & TASK_PENDING) == 0U))
 		{
 			if ((index <= g_nextPriority)
-				|| (g_PriorityTask[index].duration < left))
+				|| (g_tasks[index].duration < left))
 			{
 				break;
 			}
@@ -289,7 +271,7 @@ static void taskWaitEvent(void)
 		{
 			g_tasks[index].state &= ~TASK_READY;
 			
-			g_PriorityTask[index].action();
+			g_tasks[index].action();
 		}
 		else	/* idle time */
 		{
@@ -384,7 +366,7 @@ void taskInit(void)
 	int i;
 	time_t now;
 	
-	if ((sizeof(g_PriorityTask) / sizeof(struct taskInfo)) != PRIORITY_TASK_COUNT)
+	if ((sizeof(g_tasks) / sizeof(struct taskInfo)) != PRIORITY_TASK_COUNT)
 	{
 		TRACE("ERROR! priority task definition is not compatible\n");
 		ASSERT(0);
@@ -406,10 +388,10 @@ void taskInit(void)
 
 	for (i = 0U; i < PRIORITY_TASK_COUNT; i++)
 	{
-		if (g_PriorityTask[i].circle > 0U)
+		if (g_tasks[i].circle > 0U)
 		{
 			g_tasks[i].state |= TASK_DELAY;
-			g_tasks[i].until = now + g_PriorityTask[i].circle;
+			g_tasks[i].until = now + g_tasks[i].circle;
 		}
 		else
 		{
@@ -418,9 +400,9 @@ void taskInit(void)
 		
 		g_tasks[i].state &= ~TASK_PENDING;
 
-		ASSERT(g_PriorityTask[i].action);
+		ASSERT(g_tasks[i].action);
 		/* LDRA_assert */
-		/* g_PriorityTask[i].action */
+		/* g_tasks[i].action */
 		/* LDRA_end */
 	}
 }
