@@ -25,11 +25,8 @@
 /******************************************************************************
  * include
 *******************************************************************************/
-#include "std.h"
-#include "debug.h"
-#include "systime.h"
-#include "rti_pub.h"
 #include "task.h"
+typedef unsigned int			time_t;
 
 /******************************************************************************
  * static declaration
@@ -46,16 +43,16 @@
 
 struct taskCtlBlk
 {
-	U32 until;		/**< 延时运行开始时间，基于systime local时间 */
-	U32 state;		/**< 运行状态 */
+	time_t until;		/**< 延时运行开始时间，基于systime local时间 */
+	char state;		/**< 运行状态 */
 };
 
-static U32 taskGetTick(void);
+static time_t taskGetTick(void);
 static void taskReset(void);
-static U32 tickLeft(U32 after, U32 before);
-static U32 taskFindIdle(U32 left);
+static time_t tickLeft(time_t after, time_t before);
+static int taskFindIdle(time_t left);
 static void taskDelayedFlagSet(void);
-static U32 taskFindPriority(U32 left);
+static int taskFindPriority(time_t left);
 static void taskWaitEvent(void);
 extern void sysReset(void);
 
@@ -63,8 +60,8 @@ extern void sysReset(void);
  * static global words
 *******************************************************************************/
 static struct taskCtlBlk g_tasks[PRIORITY_TASK_COUNT];
-static U32 g_nextPriority;		/**< 下一个需要执行任务的优先级 */
-static U32 g_nextStart;			/**< 下一个需要执行任务的开始时间 */
+static int g_nextPriority;		/**< 下一个需要执行任务的优先级 */
+static time_t g_nextStart;			/**< 下一个需要执行任务的开始时间 */
 
 /******************************************************************************
  * static functions implementation
@@ -76,11 +73,11 @@ static U32 g_nextStart;			/**< 下一个需要执行任务的开始时间 */
  *
  * @return        当前的定时器计数值
  */
-static U32 taskGetTick(void)
+static time_t taskGetTick(void)
 {
-	U32 tick = 0U;
+	time_t tick = 0U;
 	
-	(void)RTI_GetCounter(&tick);
+	//RTI_GetCounter(&tick);
 	
 	return tick;
 }
@@ -102,7 +99,7 @@ static void taskReset(void)
 #endif
 }
 
-static U32 tickLeft(U32 after, U32 before)
+static time_t tickLeft(time_t after, time_t before)
 {
 	S32 left;
 	
@@ -121,7 +118,7 @@ static U32 tickLeft(U32 after, U32 before)
  * @param deadLine	目标时间
  * @return
  */
-static BOOLEAN taskAhead(U32 index, U32 deadLine)
+static BOOLEAN taskAhead(int index, time_t deadLine)
 {
 	BOOLEAN ahead;
 
@@ -145,8 +142,8 @@ static BOOLEAN taskAhead(U32 index, U32 deadLine)
  */
 static void findNextTask(void)
 {
-	U32 index;
-	U32 nextTask;				/**< 局部变量，防止重入时被修改 */
+	int index;
+	int nextTask;				/**< 局部变量，防止重入时被修改 */
 	static U8 reentrant = 0U;	/**< 用于判断是否重入 */
 	U8 saved;					/**< 局部变量保存，当前的重入值 */
 
@@ -196,10 +193,10 @@ static void findNextTask(void)
  * @param left		允许的执行时间
  * @return			返回相应任务索引，如果没有满足条件的，返回IDLE_TASK_COUNT
  */
-static U32 taskFindIdle(U32 left)
+static int taskFindIdle(time_t left)
 {
-	static U32 idleIndex;
-	U32 rc;
+	static int idleIndex;
+	int rc;
 
 	if (g_IdleTask[idleIndex].duration >= left)
 	{
@@ -224,8 +221,8 @@ static U32 taskFindIdle(U32 left)
  */
 static void taskDelayedFlagSet(void)
 {
-	U32 index;
-	U32 now;
+	int index;
+	time_t now;
 
 	now = taskGetTick();
 
@@ -257,9 +254,9 @@ static void taskDelayedFlagSet(void)
  *
  * @return			任务索引，如果没有任务需要执行，则返回PRIORITY_TASK_COUNT
  */
-static U32 taskFindPriority(U32 left)
+static int taskFindPriority(time_t left)
 {
-	U32 index;
+	int index;
 	
 	for (index = 0U; index < PRIORITY_TASK_COUNT; index++)
 	{
@@ -282,8 +279,8 @@ static U32 taskFindPriority(U32 left)
  */
 static void taskWaitEvent(void)
 {
-	U32 left = 0U;
-	U32 index = PRIORITY_TASK_COUNT;
+	time_t left = 0U;
+	int index = PRIORITY_TASK_COUNT;
 	
 	while (left = tickLeft(g_nextStart - TASK_PERIOD_RESERVE, taskGetTick()))
 	{
@@ -323,7 +320,7 @@ void taskRun(enum TASK_FLAG index)
 	g_tasks[index].state |= TASK_READY;
 }
 
-void taskDelayedRun(enum TASK_FLAG index, U32 usec)
+void taskDelayedRun(enum TASK_FLAG index, time_t usec)
 {
 	/* LDRA_assert */
 	/* index < PRIORITY_TASK_COUNT */
@@ -366,20 +363,12 @@ void taskResume(enum TASK_FLAG index)
  */
 void taskSchedule(void)
 {
-	U32 handle;
-	DBG_COUNT(count);
-
-	handle = systime100usPeriod(TASK_TIMEOUT * SYSTIME_100US, &taskReset);
-	
 	while (1)
 	{
 		taskDelayedFlagSet();
 		findNextTask();
 
 		taskWaitEvent();
-		
-		systimeRestart(handle);
-		dbpin1(count++ % 2);
 	}
 }
 
@@ -392,8 +381,8 @@ void taskSchedule(void)
  */
 void taskInit(void)
 {
-	U32 i;
-	U32 now;
+	int i;
+	time_t now;
 	
 	if ((sizeof(g_PriorityTask) / sizeof(struct taskInfo)) != PRIORITY_TASK_COUNT)
 	{
