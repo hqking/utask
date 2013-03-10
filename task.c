@@ -25,6 +25,7 @@
 /******************************************************************************
  * include
 *******************************************************************************/
+#include <stdlib.h>
 #include "queue.h"
 #include "task.h"
 
@@ -44,6 +45,10 @@
 static struct tcb g_tasks[PRIORITY_TASK_COUNT];
 static int g_nextPriority;		/**< 下一个需要执行任务的优先级 */
 static time_t g_nextStart;			/**< 下一个需要执行任务的开始时间 */
+
+SLIST_HEAD(listHead, tcb);
+struct listHead g_ready = SLIST_HEAD_INITIALIZER(g_ready);
+struct listHead g_delayed = SLIST_HEAD_INITIALIZER(g_delayed);
 
 /******************************************************************************
  * static functions implementation
@@ -236,24 +241,24 @@ static void taskDelayedFlagSet(void)
  *
  * @return			任务索引，如果没有任务需要执行，则返回PRIORITY_TASK_COUNT
  */
-static int taskFindPriority(time_t left)
+static struct tcb * taskFindPriority(time_t left)
 {
-	int index;
+	struct tcb *task;
 	
-	for (index = 0U; index < PRIORITY_TASK_COUNT; index++)
+	SLIST_FOREACH(task, &g_ready, entries)
 	{
-		if (((g_tasks[index].state & TASK_READY) > 0U)
-			&& ((g_tasks[index].state & TASK_PENDING) == 0U))
+		if (((task->state & TASK_READY) > 0U)
+			&& ((task->state & TASK_PENDING) == 0U))
 		{
-			if ((index <= g_nextPriority)
-				|| (g_tasks[index].duration < left))
+			if ((task->priority <= g_nextPriority)
+				|| (task->duration < left))
 			{
 				break;
 			}
 		}
 	}
 	
-	return index;
+	return task;
 }
 
 /**
@@ -262,16 +267,16 @@ static int taskFindPriority(time_t left)
 static void taskWaitEvent(void)
 {
 	time_t left = 0U;
-	int index = PRIORITY_TASK_COUNT;
+	struct tcb *task = NULL;
 	
 	while (left = tickLeft(g_nextStart - TASK_PERIOD_RESERVE, taskGetTick()))
 	{
-		index = taskFindPriority(left);
-		if (index < PRIORITY_TASK_COUNT)
+		task = taskFindPriority(left);
+		if (task != NULL)
 		{
-			g_tasks[index].state &= ~TASK_READY;
+			task->state &= ~TASK_READY;
 			
-			g_tasks[index].action();
+			task->action();
 		}
 		else	/* idle time */
 		{

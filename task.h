@@ -9,6 +9,7 @@ struct tcb
 	time_t until;		/**< 延时运行开始时间，基于systime local时间 */
 	char state;		/**< 运行状态 */
 	int priority;
+	SLIST_ENTRY(tcb) entries;
 };
 
 typedef unsigned int			time_t;
