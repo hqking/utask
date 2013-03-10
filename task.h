@@ -11,6 +11,8 @@ struct tcb
 	int priority;
 };
 
+typedef unsigned int			time_t;
+
 void taskRun(enum TASK_FLAG index);
 void taskDelayedRun(enum TASK_FLAG index, time_t usec);
 void taskPause(enum TASK_FLAG index)j;
