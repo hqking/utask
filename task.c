@@ -44,7 +44,6 @@
 *******************************************************************************/
 static struct tcb g_tasks[PRIORITY_TASK_COUNT];
 static int g_nextPriority;		/**< 下一个需要执行任务的优先级 */
-static time_t g_nextStart;			/**< 下一个需要执行任务的开始时间 */
 
 SLIST_HEAD(listHead, tcb);
 struct listHead g_ready = SLIST_HEAD_INITIALIZER(g_ready);
@@ -99,80 +98,38 @@ static time_t tickLeft(time_t after, time_t before)
 }
 
 /**
- * @details			判断任务是否能够在目标时间内执行完毕。
- *
- * @param index		任务索引
- * @param deadLine	目标时间
- * @return
- */
-static BOOLEAN taskAhead(int index, time_t deadLine)
-{
-	BOOLEAN ahead;
-
-	if (tickLeft(deadLine, g_tasks[index].until + g_tasks[index].duration) > TASK_PERIOD_RESERVE)
-	{
-		ahead = TRUE;
-	}
-	else
-	{
-		ahead = FALSE;
-	}
-
-	return ahead;
-}
-
-/**
  * @details			查找下一个需要执行的延时任务。
  * 					此函数需要使用全局变量，且会在中断里重入
  * 					如果执行时间不长，可以考虑把整个函数Lock住。这样可以减少各种局部变量的使用
  *
  */
-static void findNextTask(void)
+static time_t findNextTask(void)
 {
-	int index;
-	int nextTask;				/**< 局部变量，防止重入时被修改 */
-	static U8 reentrant = 0U;	/**< 用于判断是否重入 */
-	U8 saved;					/**< 局部变量保存，当前的重入值 */
-
-	/* 严格讲，下面两行需要Lock，但即便被中断了，也没有关系，中断中的计算先于后面的计算 */
-	reentrant++;
-	saved = reentrant;
-
-	nextTask = PRIORITY_TASK_COUNT;
-
-	for (index = 0U; index < PRIORITY_TASK_COUNT; index++)
-	{
-		if ((g_tasks[index].state & TASK_DELAY) > 0U)
-		{
-			nextTask = index;
-			break;
-		}
+	struct tcb *task;
+	struct tcb *next;
+	time_t completeTime;
+	
+	if (SLIST_EMPTY(&g_delayed))
+		return taskGetTick() + TASK_WAKE_INTERVAL;
+	
+	task = SLIST_FIRST(&g_delayed);
+	completeTime = task->until + task->duration;
+	
+	next = task;
+	while (next = SLIST_NEXT(next, entries)) {
+		/* lower or equal priority, ignored */
+		if (next->priority <= task->priority)
+			continue;
+		
+		/* start after current complete time, ignored */
+		if (tickLeft(task->until, completeTime) > TASK_PERIOD_RESERVE)
+			continue;
+			
+		task = next;
+		completeTime = task->until + task->duration;
 	}
-
-	for (index++; index < PRIORITY_TASK_COUNT; index++)
-	{
-		if ((g_tasks[index].state & TASK_DELAY) > 0U
-			&& taskAhead(index, g_tasks[nextTask].until) == TRUE)
-		{
-			nextTask = index;
-		}
-	}
-
-	/* lock */
-	if (saved == reentrant)
-	{
-		if (nextTask < PRIORITY_TASK_COUNT)
-		{
-			g_nextPriority = nextTask;
-			g_nextStart = g_tasks[nextTask].until;
-		}
-		else
-		{
-			g_nextPriority = TASK_LOWEST_PRIORITY;
-			g_nextStart = taskGetTick() + TASK_PERIOD;
-		}
-	}
-	/* unlock */
+	
+	return completeTime;
 }
 
 /**
@@ -246,12 +203,12 @@ static struct tcb * taskFindPriority(time_t left)
 	struct tcb *task;
 	
 	SLIST_FOREACH(task, &g_ready, entries)
-	{
+	{	
 		if (((task->state & TASK_READY) > 0U)
 			&& ((task->state & TASK_PENDING) == 0U))
 		{
 			if ((task->priority <= g_nextPriority)
-				|| (task->duration < left))
+				|| (task->duration < left - TASK_PERIOD_RESERVE))
 			{
 				break;
 			}
@@ -264,12 +221,12 @@ static struct tcb * taskFindPriority(time_t left)
 /**
  * @details			等待时间触发的任务执行，空闲时执行空闲任务
  */
-static void taskWaitEvent(void)
+static void taskWaitEvent(time_t deadLine)
 {
 	time_t left = 0U;
 	struct tcb *task = NULL;
 	
-	while (left = tickLeft(g_nextStart - TASK_PERIOD_RESERVE, taskGetTick()))
+	while (left = tickLeft(deadLine, taskGetTick()))
 	{
 		task = taskFindPriority(left);
 		if (task != NULL)
@@ -350,12 +307,14 @@ void taskResume(enum TASK_FLAG index)
  */
 void taskSchedule(void)
 {
+	time_t left;
+
 	while (1)
 	{
 		taskDelayedFlagSet();
-		findNextTask();
+		left = findNextTask();
 
-		taskWaitEvent();
+		taskWaitEvent(left);
 	}
 }
 
