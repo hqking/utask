@@ -201,17 +201,22 @@ static void taskDelayedFlagSet(void)
 static struct tcb * taskFindPriority(time_t left)
 {
 	struct tcb *task;
+	struct tcb *prev = NULL;
 	
 	SLIST_FOREACH(task, &g_ready, entries)
-	{	
-		if (((task->state & TASK_READY) > 0U)
-			&& ((task->state & TASK_PENDING) == 0U))
+	{
+		if (task->state & TASK_PENDING == 0U
+			&& task->priority > g_nextPriority
+			|| task->duration < left - TASK_PERIOD_RESERVE)
 		{
-			if ((task->priority <= g_nextPriority)
-				|| (task->duration < left - TASK_PERIOD_RESERVE))
-			{
-				break;
-			}
+			if (prev)
+				SLIST_NEXT(prev, entires) = SLIST_NEXT(task, entries);
+			else
+				SLIST_REMOVE_HEAD(&g_ready, entires);
+				
+			break;
+		} else {
+			prev = task;
 		}
 	}
 	
@@ -234,6 +239,8 @@ static void taskWaitEvent(time_t deadLine)
 			task->state &= ~TASK_READY;
 			
 			task->action();
+			
+			// TODO: ADD circled task to delayed list
 		}
 		else	/* idle time */
 		{
