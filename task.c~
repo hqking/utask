@@ -24,14 +24,14 @@
 
 /******************************************************************************
  * include
- *******************************************************************************/
+*******************************************************************************/
 #include <stdlib.h>
 #include "queue.h"
 #include "task.h"
 
 /******************************************************************************
  * static declaration
- *******************************************************************************/
+*******************************************************************************/
 #define TASK_LOWEST_PRIORITY	0xffffU
 #define TASK_PERIOD_RESERVE		50U		/* 保留给任务调度的开销，5us */
 
@@ -41,7 +41,7 @@
 
 /******************************************************************************
  * static global words
- *******************************************************************************/
+*******************************************************************************/
 static struct tcb g_tasks[PRIORITY_TASK_COUNT];
 static int g_nextPriority;		/**< 下一个需要执行任务的优先级 */
 
@@ -51,7 +51,7 @@ struct listHead g_delayed = SLIST_HEAD_INITIALIZER(g_delayed);
 
 /******************************************************************************
  * static functions implementation
- *******************************************************************************/
+*******************************************************************************/
 /**
  * @details       获取定时器计数值
  *                task模块使用定时器驱动的统一入口，程序其他部分不要直接使用驱动接口
@@ -105,25 +105,24 @@ static time_t tickLeft(time_t after, time_t before)
  */
 static time_t findNextTask(void)
 {
-	struct tcb *task;
-	struct tcb *next;
-	time_t fcompleteTime;
+  struct tcb *task;
+  struct tcb *next;
+  time_t completeTime;
 	
+  if (SLIST_EMPTY(&g_delayed))
+    return taskGetTick() + TASK_WAKE_INTERVAL;
 	
-	if (SLIST_EMPTY(&g_delayed))
-		return taskGetTick() + TASK_WAKE_INTERVAL;
+  task = SLIST_FIRST(&g_delayed);
+  completeTime = task->until + task->duration;
 	
-	task = SLIST_FIRST(&g_delayed);
-	completeTime = task->until + task->duration;
-	
-	next = task;
-	while (next = SLIST_NEXT(next, entries)) {
-		/* lower or equal priority, ignored */
-		if (next->priority <= task->priority)
-			continue;
+  next = task;
+  while (next = SLIST_NEXT(next, entries)) {
+    /* lower or equal priority, ignored */
+    if (next->priority <= task->priority)
+      continue;
 		
-		/* start after current complete time, ignored */
-		if (tickLeft(task->until, completeTime) > TASK_PERIOD_RESERVE)
+    /* start after current complete time, ignored */
+    if (tickLeft(task->until, completeTime) > TASK_PERIOD_RESERVE)
 			continue;
 			
 		task = next;
@@ -207,8 +206,8 @@ static struct tcb * taskFindPriority(time_t left)
 	SLIST_FOREACH(task, &g_ready, entries)
 	{
 		if (task->state & TASK_PENDING == 0U
-		    && task->priority > g_nextPriority
-		    || task->duration < left - TASK_PERIOD_RESERVE)
+			&& task->priority > g_nextPriority
+			|| task->duration < left - TASK_PERIOD_RESERVE)
 		{
 			if (prev)
 				SLIST_NEXT(prev, entires) = SLIST_NEXT(task, entries);
@@ -256,7 +255,7 @@ static void taskWaitEvent(time_t deadLine)
 
 /******************************************************************************
  * public functions implementation
- *******************************************************************************/
+*******************************************************************************/
 /**
  * @details       任务触发运行函数
  *                将相应的条件执行任务置于预备运行状态
