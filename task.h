@@ -1,8 +1,7 @@
 #ifndef __TASK_H__
 #define __TASK_H__
 
-struct tcb
-{
+struct tcb {
 	const void (*action)(void);
 	const time_t circle;
 	const time_t duration;
@@ -14,11 +13,16 @@ struct tcb
 
 typedef unsigned int			time_t;
 
-void taskRun(enum TASK_FLAG index);
-void taskDelayedRun(enum TASK_FLAG index, time_t usec);
-void taskPause(enum TASK_FLAG index)j;
-void taskResume(enum TASK_FLAG index);
+/* API */
+void taskRun(struct tcb *task);
+void taskDelayedRun(struct tcb *task, time_t t);
+void taskPause(struct tcb *task);
+void taskResume(struct tcb *task);
 void taskSchedule(void);
 void taskInit(void);
+
+/* user implemented functions */
+extern time_t taskGetTick(void);
+extern void taskIdleHook(time_t);
 
 #endif /* __TASK_H__ */
