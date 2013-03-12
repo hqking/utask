@@ -71,7 +71,7 @@ static struct tcb * findNextTask(void)
 		.action = NULL,
 		.circle = TASK_WAKE_INTERVAL,
 		.duration = 0,
-		.priority = 0,
+		.priority = -128,
 	};
 	struct tcb *task;
 	
@@ -106,15 +106,18 @@ static struct tcb * findNextTask(void)
  *
  * @return			任务索引，如果没有任务需要执行，则返回PRIORITY_TASK_COUNT
  */
-static struct tcb * taskFindPriority(time_t left)
+static struct tcb * taskFindPriority(struct tcb *nextTask)
 {
 	struct tcb *task;
 	struct tcb *prev = NULL;
+	time_t left = 0U;
 	
+	left = tickLeft(nextTask->until, taskGetTick());
+
 	SLIST_FOREACH(task, &g_ready, entries)
 	{
 		if (task->state & TASK_PENDING == 0U
-		    && task->priority > g_nextPriority
+		    && task->priority > nextTask->priority
 		    || task->duration < left - TASK_PERIOD_RESERVE)
 		{
 			if (prev)
@@ -136,13 +139,11 @@ static struct tcb * taskFindPriority(time_t left)
  */
 static void taskWaitEvent(struct tcb *nextTask)
 {
-	time_t left = 0U;
 	struct tcb *task = NULL;
 	
 	assert(nextTask);
 
-	left = tickLeft(nextTask->until, taskGetTick());
-	task = taskFindPriority(left);
+	task = taskFindPriority(nextTask);
 	if (task != NULL) {
 		task->state &= ~TASK_READY;
 			
@@ -164,10 +165,27 @@ static void taskWaitEvent(struct tcb *nextTask)
  */
 void taskRun(struct tcb *task)
 {
+	struct tcb *tp;
+	struct tcb *prev;
+
 	assert(task);
 
-	SLIST_INSERT_HEAD(&g_ready, task, entries);
-	/* waken cpu from idle hook */
+	prev = NULL;
+	SLIST_FOREACH(tp, &g_ready, entries)
+	{
+		if (tp->priority < task->priority)
+			break;
+		
+		prev = tp;
+	}
+	
+	if (prev) {
+		SLIST_INSERT_AFTER(prev, task, entries);
+	} else {
+		SLIST_INSERT_HEAD(&g_ready, task, entries);
+
+		/* waken cpu from idle hook */
+	}
 }
 
 void taskDelayedRun(struct tcb *task, time_t t)
