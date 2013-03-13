@@ -40,6 +40,7 @@
 SLIST_HEAD(listHead, tcb);
 static struct listHead g_ready = SLIST_HEAD_INITIALIZER(g_ready);
 static struct listHead g_delayed = SLIST_HEAD_INITIALIZER(g_delayed);
+static struct tcb *g_nextTask;
 
 /******************************************************************************
  * static functions implementation
@@ -57,6 +58,32 @@ static time_t tickLeft(time_t after, time_t before)
 	return left;
 }
 
+static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
+{
+	assert(tsk1);
+	assert(tsk2);
+
+	if (tsk1->until == tsk2->until) {
+		return tsk1->priority - tsk2->priority;
+
+	} else {
+		if (tickLeft(tsk1->until, tsk2->until) > 0) { /* task2 is early */
+			if (tsk2->priority > tsk1->priority
+			    || tickLeft(tsk2->until + tsk2->duration, tsk1->until))
+				return -1;
+		} else {		/* task1 is early */
+			if (tsk1->priority > tsk2->until
+			    || tickLeft(tsk1->until + tsk1->duration, tsk2->until))
+				return 1;
+		}
+	}
+}
+
+static void nothing(void)
+{
+
+}
+
 /**
  * @details			查找下一个需要执行的延时任务。
  * 					此函数需要使用全局变量，且会在中断里重入
@@ -68,7 +95,7 @@ static struct tcb * findNextTask(void)
 	struct tcb *next;
 	time_t fcompleteTime;
 	static struct tcb dummy = {
-		.action = NULL,
+		.action = nothing,
 		.circle = TASK_WAKE_INTERVAL,
 		.duration = 0,
 		.priority = -128,
@@ -169,10 +196,10 @@ void taskRun(struct tcb *task)
 	struct tcb *prev;
 
 	assert(task);
+	assert(task->action);
 
 	prev = NULL;
-	SLIST_FOREACH(tp, &g_ready, entries)
-	{
+	SLIST_FOREACH(tp, &g_ready, entries) {
 		if (tp->priority < task->priority)
 			break;
 		
@@ -184,22 +211,38 @@ void taskRun(struct tcb *task)
 	} else {
 		SLIST_INSERT_HEAD(&g_ready, task, entries);
 
-		/* waken cpu from idle hook */
+		task->until = taskGetTick();
+		if (taskCmp(g_nextTask, task) < 0) {
+			/* waken cpu from idle hook */
+		}
 	}
 }
 
-void taskDelayedRun(struct tcb *task, time_t t)
+void taskDelayedRun(struct tcb *task, time_t delay)
 {
 	assert(task);
-	assert(t);
+	assert(task->action);
+	assert(delay);
 
-	g_tasks[index].until = taskGetTick() + t;
+	task->until = taskGetTick() + delay;
 
-	SLIST_INSERT_HEAD(&g_delayed, task, entries);
-	/* waken cpu from idle hook */
-	/* not complete */
-	
-	findNextTask();
+	prev = NULL;
+	SLIST_FOREACH(tp, &g_delayed, entries) {
+		if (tickLeft(tp->until, task->until) == 0)
+			break;
+
+		prev = tp;
+	}
+
+	if (prev) {
+		SLIST_INSERT_AFTER(prev, task, entries);
+	} else {
+		SLIST_INSERT_HEAD(&g_delayed, task, entries);
+	}
+
+	if (taskCmp(g_nextTask, task) < 0) {
+		/* waken cpu from idle hook */		
+	}
 }
 
 /**
@@ -233,15 +276,14 @@ void taskResume(struct tcb *task)
  */
 void taskSchedule(void)
 {
-	struct tcb *nextTask;
-
 	while (1) {
-		nextTask = findNextTask();
-		taskWaitEvent(nextTask->until);
+		g_nextTask = findNextTask();
+		taskWaitEvent(g_nextTask->until);
 
-		if (tickLeft(nextTask->unitl, taskGetTick()) == 0) {
-			if (nextTask->action)
-				nextTask->action();
+		if (tickLeft(g_nextTask->unitl, taskGetTick()) == 0) {
+			g_nextTask->action();
+
+			/* if g_nextTask is circled, add it back to delayed queue */
 		}
 	}
 }
