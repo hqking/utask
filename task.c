@@ -125,6 +125,25 @@ static struct tcb * findNextTask(void)
 	return completeTime;
 }
 
+static void addDelayedQueue(struct tcb *task)
+{
+	struct tcb *prev;
+
+	prev = NULL;
+	SLIST_FOREACH(tp, &g_delayed, entries) {
+		if (tickLeft(tp->until, task->until) == 0)
+			break;
+
+		prev = tp;
+	}
+
+	if (prev) {
+		SLIST_INSERT_AFTER(prev, task, entries);
+	} else {
+		SLIST_INSERT_HEAD(&g_delayed, task, entries);
+	}	
+}
+
 /**
  * @details			查找优先级任务是否需要执行，如果需要执行的任务优先级高于下一个延时任务，
  * 					则忽略允许执行时间
@@ -226,19 +245,7 @@ void taskDelayedRun(struct tcb *task, time_t delay)
 
 	task->until = taskGetTick() + delay;
 
-	prev = NULL;
-	SLIST_FOREACH(tp, &g_delayed, entries) {
-		if (tickLeft(tp->until, task->until) == 0)
-			break;
-
-		prev = tp;
-	}
-
-	if (prev) {
-		SLIST_INSERT_AFTER(prev, task, entries);
-	} else {
-		SLIST_INSERT_HEAD(&g_delayed, task, entries);
-	}
+	addDelayedQueue(task);
 
 	if (taskCmp(g_nextTask, task) < 0) {
 		/* waken cpu from idle hook */		
@@ -283,7 +290,8 @@ void taskSchedule(void)
 		if (tickLeft(g_nextTask->unitl, taskGetTick()) == 0) {
 			g_nextTask->action();
 
-			/* if g_nextTask is circled, add it back to delayed queue */
+			if (g_nextTask->circle > 0)
+				addDelayedQueue(g_nextTask);
 		}
 	}
 }
