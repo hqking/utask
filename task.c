@@ -33,8 +33,6 @@
 /******************************************************************************
  * static declaration
  *******************************************************************************/
-#define TASK_PERIOD_RESERVE		50U		/* 保留给任务调度的开销，5us */
-
 #define TASK_PENDING			0x80U
 
 SLIST_HEAD(listHead, tcb);
@@ -163,25 +161,28 @@ static struct tcb * taskFindPriority(struct tcb *nextTask)
 	struct tcb *prev = NULL;
 	time_t left = 0U;
 	
+	if (SLIST_EMPTY(&g_ready))
+		return NULL;
+
 	left = tickLeft(nextTask->until, taskGetTick());
 
 	SLIST_FOREACH(task, &g_ready, entries)
 	{
 		if (task->state & TASK_PENDING == 0U
-		    && task->priority > nextTask->priority
-		    || task->duration < left - TASK_PERIOD_RESERVE)
+		    && task->priority >= nextTask->priority
+		    || task->duration <= left)
 		{
-			if (prev)
-				SLIST_NEXT(prev, entires) = SLIST_NEXT(task, entries);
-			else
-				SLIST_REMOVE_HEAD(&g_ready, entires);
-				
 			break;
 		} else {
 			prev = task;
 		}
 	}
 	
+	if (prev)
+		SLIST_NEXT(prev, entires) = SLIST_NEXT(task, entries);
+	else
+		SLIST_REMOVE_HEAD(&g_ready, entires);
+				
 	return task;
 }
 
@@ -290,7 +291,7 @@ void taskSchedule(void)
 {
 	while (1) {
 		g_nextTask = findNextTask();
-		taskWaitEvent(g_nextTask->until);
+		taskWaitEvent(g_nextTask);
 
 		if (tickLeft(g_nextTask->unitl, taskGetTick()) == 0) {
 			g_nextTask->action();
