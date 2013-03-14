@@ -125,12 +125,16 @@ static struct tcb * findNextTask(void)
 	else
 		SLIST_REMOVE_HEAD(&g_delayed, entires);
 
+	next->queue = TASK_NONE;
+
 	return next;
 }
 
 static void addDelayedQueue(struct tcb *task)
 {
 	struct tcb *prev;
+
+	task->queue = TASK_DELAYED;
 
 	prev = NULL;
 	SLIST_FOREACH(tp, &g_delayed, entries) {
@@ -155,21 +159,17 @@ static void addDelayedQueue(struct tcb *task)
  *
  * @return			任务索引，如果没有任务需要执行，则返回PRIORITY_TASK_COUNT
  */
-static struct tcb * taskFindPriority(struct tcb *nextTask)
+static struct tcb * taskFindPriority(struct tcb *nextTask, time_t left)
 {
 	struct tcb *task;
 	struct tcb *prev = NULL;
-	time_t left = 0U;
-	
+
 	if (SLIST_EMPTY(&g_ready))
 		return NULL;
 
-	left = tickLeft(nextTask->until, taskGetTick());
-
 	SLIST_FOREACH(task, &g_ready, entries)
 	{
-		if (task->state & TASK_PENDING == 0U
-		    && task->priority >= nextTask->priority
+		if (task->priority >= nextTask->priority
 		    || task->duration <= left)
 		{
 			break;
@@ -183,6 +183,8 @@ static struct tcb * taskFindPriority(struct tcb *nextTask)
 	else
 		SLIST_REMOVE_HEAD(&g_ready, entires);
 				
+	task->queue = TASK_NONE;
+
 	return task;
 }
 
@@ -192,13 +194,14 @@ static struct tcb * taskFindPriority(struct tcb *nextTask)
 static void taskWaitEvent(struct tcb *nextTask)
 {
 	struct tcb *task = NULL;
+	time_t left = 0U;
 	
 	assert(nextTask);
 
-	task = taskFindPriority(nextTask);
+	left = tickLeft(nextTask->until, taskGetTick());
+
+	task = taskFindPriority(nextTask, left);
 	if (task != NULL) {
-		task->state &= ~TASK_READY;
-			
 		task->action();
 	} else {
 		taskIdleHook(left);
@@ -222,6 +225,9 @@ void taskRun(struct tcb *task)
 
 	assert(task);
 	assert(task->action);
+	assert(task->queue == TASK_NONE);
+
+	task->queue = TASK_READY;
 
 	prev = NULL;
 	SLIST_FOREACH(tp, &g_ready, entries) {
@@ -248,6 +254,7 @@ void taskDelayedRun(struct tcb *task, time_t delay)
 	assert(task);
 	assert(task->action);
 	assert(delay);
+	assert(task->queue == TASK_NONE);
 
 	task->until = taskGetTick() + delay;
 
@@ -265,8 +272,10 @@ void taskDelayedRun(struct tcb *task, time_t delay)
 void taskPause(struct tcb *task)
 {
 	assert(task);
+	assert(task->queue == TASK_NONE);
 
-	task->state |= TASK_PENDING;
+	/* TODO */
+	task->queue = TASK_QUEUE;
 }
 
 /**
@@ -277,7 +286,7 @@ void taskResume(struct tcb *task)
 {
 	assert(task);
 
-	task->state &= ~TASK_PENDING;
+	/* TODO */
 }
 
 /**
@@ -296,8 +305,9 @@ void taskSchedule(void)
 		if (tickLeft(g_nextTask->unitl, taskGetTick()) == 0) {
 			g_nextTask->action();
 
-			if (g_nextTask->circle > 0)
+			if (g_nextTask->circle > 0) {
 				addDelayedQueue(g_nextTask);
+			}
 		}
 	}
 }
