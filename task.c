@@ -93,39 +93,41 @@ static void nothing(void)
 static struct tcb * findNextTask(void)
 {
 	struct tcb *next;
-	time_t fcompleteTime;
+	struct tcb *prev;
+	struct tcb *task;
+	time_t completeTime;
 	static struct tcb dummy = {
 		.action = nothing,
 		.circle = TASK_WAKE_INTERVAL,
 		.duration = 0,
 		.priority = -128,
 	};
-	struct tcb *task;
 	
 	if (SLIST_EMPTY(&g_delayed))
 		return &dummy;
-	
-	SLIST_FOREACH(task, &g_delayed, entries) {
-		/* lower or equal priority, ignored */
-		if (task->priority >= next->priority)
-			continue;
 
-		/* start after current complete time, ignored */
-		if (tickLeft(next->until, completeTime) > 0)
-			continue;
-			
-	}
+	next = SLIST_FIRST(&g_delayed);
+	completeTime = next->until + next->duration;
+	prev = NULL;
+	task = next;
 
-	task = SLIST_FIRST(&g_delayed);
-	completeTime = task->until + task->duration;
-	
-	next = task;
-	while (next = SLIST_NEXT(next, entries)) {
-		task = next;
-		completeTime = task->until + task->duration;
+	while (task = SLIST_NEXT(task, entries)) {
+		if (task->priority > next->priority
+		    && tickLeft(next->until, completeTime) == 0) {
+			next = task;
+			completeTime = next->until + next->duration;
+			break;
+		} else {
+			prev = task;
+		}
 	}
 	
-	return task;
+	if (prev)
+		SLIST_NEXT(prev, entires) = SLIST_NEXT(next, entries);
+	else
+		SLIST_REMOVE_HEAD(&g_delayed, entires);
+
+	return next;
 }
 
 static void addDelayedQueue(struct tcb *task)
