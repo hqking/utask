@@ -1,6 +1,13 @@
 #ifndef __TASK_H__
 #define __TASK_H__
 
+enum TASK_CODE {
+	TSKRC_OK = 0,
+	TSKRC_INVALID = -1,
+	TSKRC_ALREADY = -2,
+	TSKRC_PENDING = -3,
+};
+
 struct tcb {
 	const void (*action)(void);
 	const time_t circle;
@@ -19,10 +26,10 @@ struct tcb {
 typedef unsigned int			time_t;
 
 /* API */
-void taskRun(struct tcb *task);
-void taskDelayedRun(struct tcb *task, time_t t);
-void taskPause(struct tcb *task);
-void taskResume(struct tcb *task);
+enum TASK_CODE taskRun(struct tcb *task);
+enum TASK_CODE taskDelayedRun(struct tcb *task, time_t t);
+enum TASK_CODE taskPause(struct tcb *task);
+enum TASK_CODE taskResume(struct tcb *task);
 void taskSchedule(void);
 void taskInit(void);
 

@@ -131,6 +131,33 @@ static struct tcb * findNextTask(void)
 	return next;
 }
 
+static void addReadyQueue(struct tcb *task)
+{
+	struct tcb *tp;
+	struct tcb *prev;
+
+	task->queue = TASK_READY;
+
+	prev = NULL;
+	SLIST_FOREACH(tp, &g_ready, entries) {
+		if (tp->priority < task->priority)
+			break;
+		
+		prev = tp;
+	}
+	
+	if (prev) {
+		SLIST_INSERT_AFTER(prev, task, entries);
+	} else {
+		SLIST_INSERT_HEAD(&g_ready, task, entries);
+
+		task->until = taskGetTick();
+		if (taskCmp(g_nextTask, task) < 0) {
+			/* waken cpu from idle hook */
+		}
+	}
+}
+
 static void addDelayedQueue(struct tcb *task)
 {
 	struct tcb *prev;
@@ -219,80 +246,97 @@ static void taskWaitEvent(struct tcb *nextTask)
  *
  * @return        void
  */
-void taskRun(struct tcb *task)
+enum TASK_CODE taskRun(struct tcb *task)
 {
-	struct tcb *tp;
-	struct tcb *prev;
+	if (task == NULL || task->action == NULL)
+		return TSKRC_INVALID;
 
-	assert(task);
-	assert(task->action);
-	assert(task->queue == TASK_NONE);
+	if (task->queue == TASK_READY)
+		return TSKRC_ALREADY;
 
-	task->queue = TASK_READY;
-
-	prev = NULL;
-	SLIST_FOREACH(tp, &g_ready, entries) {
-		if (tp->priority < task->priority)
-			break;
-		
-		prev = tp;
-	}
-	
-	if (prev) {
-		SLIST_INSERT_AFTER(prev, task, entries);
-	} else {
-		SLIST_INSERT_HEAD(&g_ready, task, entries);
-
+	if (task->queue == TASK_PENDING) {
 		task->until = taskGetTick();
-		if (taskCmp(g_nextTask, task) < 0) {
-			/* waken cpu from idle hook */
-		}
+		return TSKRC_PENDING;
 	}
+
+	if (task->queue == TASK_DELAYED) {
+		SLIST_REMOVE(&g_delayed, task, tcb, entires);
+	}
+
+	addReadyQueue(task);
+
+	return TSKRC_OK;
 }
 
-void taskDelayedRun(struct tcb *task, time_t delay)
+enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 {
-	assert(task);
-	assert(task->action);
-	assert(delay);
-	assert(task->queue == TASK_NONE);
+	if (task == NULL || task->action == NULL || delay == 0)
+		return TSKRC_INVALID;
+
+	if (task->queue == TASK_DELAYED || task->queue == TASK_READY)
+		return TSKRC_ALREADY;
 
 	task->until = taskGetTick() + delay;
+
+	if (task->queue == TASK_PENDING) {
+		return TSKRC_PENDING;
+	}
 
 	addDelayedQueue(task);
 
 	if (taskCmp(g_nextTask, task) < 0) {
 		/* waken cpu from idle hook */		
 	}
+
+	return TSKRC_OK;
 }
 
 /**
  * @details			暂停任务，但此任务依旧能够接收触发条件
  * @param index		任务索引
  */
-void taskPause(struct tcb *task)
+enum TASK_CODE taskPause(struct tcb *task)
 {
-	assert(task);
-	assert(task->queue == TASK_NONE);
+	if (task == NULL || task->action == NULL)
+		return TSKRC_INVALID;
+
+	if (task->queue == TASK_PENDING) {
+		return TSKRC_ALREADY;
+
+	} else if (task->queue == TASK_READY) {
+		task->until = taskGetTick();
+		SLIST_REMOVE(&g_ready, task, tcb, entries);
+
+	} else if (task->queue == TASK_DELAYED) {
+		SLIST_REMOVE(&g_delayed, task, tcb, entires);
+	}
 
 	task->queue = TASK_PENDING;
 
 	SLIST_INSERT_HEAD(&g_pending, task, entries);
+
+	return TSKRC_OK;
 }
 
 /**
  * @details			恢复任务运行，在暂停中接收的触发条件会被立即执行
  * @param index		任务索引
  */
-void taskResume(struct tcb *task)
+enum TASK_CODE taskResume(struct tcb *task)
 {
-	assert(task);
-	assert(task->queue == TASK_PENDING);
+	if (task == NULL || task->action == NULL)
+		return TSKRC_INVALID;
+
+	if (task->queue != TASK_PENDING)
+		return TSKRC_INVALID;
 
 	SLIST_REMOVE(&g_pending, task, tcb, entries);
-	if (task->circle > 0) {
+
+	if (task->circle > 0) {	/* not correct */
 		addDelayedQueue(task);
 	}
+
+	return TSKRC_OK;
 }
 
 /**
