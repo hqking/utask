@@ -38,6 +38,7 @@
 SLIST_HEAD(listHead, tcb);
 static struct listHead g_ready = SLIST_HEAD_INITIALIZER(g_ready);
 static struct listHead g_delayed = SLIST_HEAD_INITIALIZER(g_delayed);
+static struct listHead g_pending = SLIST_HEAD_INITIALIZER(g_pending);
 static struct tcb *g_nextTask;
 
 /******************************************************************************
@@ -274,8 +275,9 @@ void taskPause(struct tcb *task)
 	assert(task);
 	assert(task->queue == TASK_NONE);
 
-	/* TODO */
-	task->queue = TASK_QUEUE;
+	task->queue = TASK_PENDING;
+
+	SLIST_INSERT_HEAD(&g_pending, task, entries);
 }
 
 /**
@@ -285,8 +287,12 @@ void taskPause(struct tcb *task)
 void taskResume(struct tcb *task)
 {
 	assert(task);
+	assert(task->queue == TASK_PENDING);
 
-	/* TODO */
+	SLIST_REMOVE(&g_pending, task, tcb, entries);
+	if (task->circle > 0) {
+		addDelayedQueue(task);
+	}
 }
 
 /**
@@ -306,6 +312,7 @@ void taskSchedule(void)
 			g_nextTask->action();
 
 			if (g_nextTask->circle > 0) {
+				g_nextTask->until += g_nextTask->circle;
 				addDelayedQueue(g_nextTask);
 			}
 		}
