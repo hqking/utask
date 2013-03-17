@@ -1,6 +1,6 @@
 /**
  * @file   task.c
- * @author  <hqking@gmail.com>
+ * @author Yifeng Jin <hqking@gmail.com>
  * @date   Sun Mar 17 15:47:13 2013
  * 
  * @brief  
@@ -74,9 +74,9 @@ static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
  * 
  * 
  */
-static void taskIdle(void)
+static void taskIdle(struct tcb * task)
 {
-	taskIdleHook(65536);	/* should be the longest time */
+	taskIdleHook(task->duration);
 }
 
 /**
@@ -195,20 +195,23 @@ void taskSchedule(void)
 	struct tcb *task;
 	time_t left;
 
-	/* lock */
+	taskLock();
 	while (1) {
 		task = SLIST_FIRST(&g_priority);
 		left = tickLeft(task->until, taskGetTick());
 
 		if (left > 0) {
-			/* unlock */
+			taskUnlock();
 			taskIdleHook(left);
-			/* lock */
+			taskLock();
+
 		} else {
 			SLIST_REMOVE_HEAD(&g_priority, entires);
-			/* unlock */
-			task->action();
-			/* lock */
+			task->queue = TASK_NONE;
+
+			taskUnlock();
+			task->action(task);
+			taskLock();
 
 			if (task->circle > 0) {
 				task->until += task->circle;
@@ -216,7 +219,7 @@ void taskSchedule(void)
 			}
 		}
 	}
-	/* unlock */
+	taskUnlock();
 }
 
 /**
@@ -225,12 +228,12 @@ void taskSchedule(void)
  */
 void taskInit(void)
 {
-	static struct tcb idleTask = {
+	static struct tcb backgroundTask = {
 		.action = taskIdle,
-		.circle = TASK_WAKE_INTERVAL,
-		.duration = 0,	/* not correct */
-		.priority = -128,
+		.circle = (1 << (sizeof(time_t) * 8 - 1)) - 1,
+		.duration = (1 << (sizeof(time_t) * 8 - 1)) - 1,
+		.priority = 1 << (sizeof(int) * 8 - 1),
 	};
 
-	SLIST_INSERT_HEAD(&g_priority, &idleTask, entires);
+	SLIST_INSERT_HEAD(&g_priority, &backgroundTask, entires);
 }

@@ -9,14 +9,13 @@ enum TASK_CODE {
 };
 
 struct tcb {
-	const void (*action)(void);
+	const void (*action)(struct tcb *);
 	const time_t circle;
 	const time_t duration;
-	time_t until;		/**< 延时运行开始时间，基于systime local时间 */
+	time_t until;
 	enum {
 		TASK_NONE,
-		TASK_READY,
-		TASK_DELAYED,
+		TASK_PRIORITY,
 		TASK_PENDING,
 	} queue;
 	int priority;
@@ -36,5 +35,7 @@ void taskInit(void);
 /* user implemented functions */
 extern time_t taskGetTick(void);
 extern void taskIdleHook(time_t);
+extern void taskLock(void);
+extern void taskUnlock(void);
 
 #endif /* __TASK_H__ */
