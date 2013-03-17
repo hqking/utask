@@ -1,39 +1,16 @@
 /**
- * @copyright Copyright (c) 1993~2015  ZheJiang SUPCON Technology CO., LTD.
- *                          All rights reserved.
- * @file     
- * @brief    
- * @author   
- * @date     
- * @version  
- *
- * @par 详细描述:
- * 详细描述..............
- *
- * @par 修订记录:
- * -# 时间，修订者，修订原因
- * -# 2012/03/19，某某某, 例。。。。。。。。。。。。
- *
- * @todo
- * - 此处放置未完成点，可写多行
- *
- * @warning
- * - 此处放置必须注意的警示点：可写多行
- *
+ * @file   task.c
+ * @author  <hqking@gmail.com>
+ * @date   Sun Mar 17 15:47:13 2013
+ * 
+ * @brief  
+ * 
+ * 
  */
-
-/******************************************************************************
- * include
- *******************************************************************************/
 #include <stdlib.h>
 #include "assert.h"
 #include "queue.h"
 #include "task.h"
-
-/******************************************************************************
- * static declaration
- *******************************************************************************/
-#define TASK_PENDING			0x80U
 
 SLIST_HEAD(listHead, tcb);
 static struct listHead g_ready = SLIST_HEAD_INITIALIZER(g_ready);
@@ -41,10 +18,14 @@ static struct listHead g_delayed = SLIST_HEAD_INITIALIZER(g_delayed);
 static struct listHead g_pending = SLIST_HEAD_INITIALIZER(g_pending);
 static struct tcb *g_nextTask;
 
-/******************************************************************************
- * static functions implementation
- *******************************************************************************/
-
+/**
+ * 
+ * 
+ * @param after 
+ * @param before 
+ * 
+ * @return 
+ */
 static time_t tickLeft(time_t after, time_t before)
 {
 	S32 left;
@@ -57,6 +38,14 @@ static time_t tickLeft(time_t after, time_t before)
 	return left;
 }
 
+/**
+ * 
+ * 
+ * @param tsk1 
+ * @param tsk2 
+ * 
+ * @return 
+ */
 static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
 {
 	assert(tsk1);
@@ -78,16 +67,20 @@ static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
 	}
 }
 
+/** 
+ * 
+ * 
+ */
 static void nothing(void)
 {
 
 }
 
-/**
- * @details			查找下一个需要执行的延时任务。
- * 					此函数需要使用全局变量，且会在中断里重入
- * 					如果执行时间不长，可以考虑把整个函数Lock住。这样可以减少各种局部变量的使用
- *
+/** 
+ * 
+ * 
+ * 
+ * @return 
  */
 static struct tcb * findNextTask(void)
 {
@@ -131,6 +124,11 @@ static struct tcb * findNextTask(void)
 	return next;
 }
 
+/**
+ *
+ * 
+ * @param task 
+ */
 static void addReadyQueue(struct tcb *task)
 {
 	struct tcb *tp;
@@ -158,6 +156,11 @@ static void addReadyQueue(struct tcb *task)
 	}
 }
 
+/**
+ * 
+ * 
+ * @param task 
+ */
 static void addDelayedQueue(struct tcb *task)
 {
 	struct tcb *prev;
@@ -180,12 +183,12 @@ static void addDelayedQueue(struct tcb *task)
 }
 
 /**
- * @details			查找优先级任务是否需要执行，如果需要执行的任务优先级高于下一个延时任务，
- * 					则忽略允许执行时间
- *
- * @param left		允许执行时间
- *
- * @return			任务索引，如果没有任务需要执行，则返回PRIORITY_TASK_COUNT
+ * 
+ * 
+ * @param nextTask 
+ * @param left 
+ * 
+ * @return 
  */
 static struct tcb * taskFindPriority(struct tcb *nextTask, time_t left)
 {
@@ -217,7 +220,9 @@ static struct tcb * taskFindPriority(struct tcb *nextTask, time_t left)
 }
 
 /**
- * @details			等待时间触发的任务执行，空闲时执行空闲任务
+ * 
+ * 
+ * @param nextTask 
  */
 static void taskWaitEvent(struct tcb *nextTask)
 {
@@ -236,15 +241,12 @@ static void taskWaitEvent(struct tcb *nextTask)
 	}
 }
 
-/******************************************************************************
- * public functions implementation
- *******************************************************************************/
 /**
- * @details       任务触发运行函数
- *                将相应的条件执行任务置于预备运行状态
- * @param[in]     void
- *
- * @return        void
+ * 
+ * 
+ * @param task 
+ * 
+ * @return 
  */
 enum TASK_CODE taskRun(struct tcb *task)
 {
@@ -268,6 +270,14 @@ enum TASK_CODE taskRun(struct tcb *task)
 	return TSKRC_OK;
 }
 
+/**
+ * 
+ * 
+ * @param task 
+ * @param delay 
+ * 
+ * @return 
+ */
 enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 {
 	if (task == NULL || task->action == NULL || delay == 0)
@@ -292,8 +302,11 @@ enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 }
 
 /**
- * @details			暂停任务，但此任务依旧能够接收触发条件
- * @param index		任务索引
+ * 
+ * 
+ * @param task 
+ * 
+ * @return 
  */
 enum TASK_CODE taskPause(struct tcb *task)
 {
@@ -319,8 +332,11 @@ enum TASK_CODE taskPause(struct tcb *task)
 }
 
 /**
- * @details			恢复任务运行，在暂停中接收的触发条件会被立即执行
- * @param index		任务索引
+ * 
+ * 
+ * @param task 
+ * 
+ * @return 
  */
 enum TASK_CODE taskResume(struct tcb *task)
 {
@@ -340,11 +356,8 @@ enum TASK_CODE taskResume(struct tcb *task)
 }
 
 /**
- * @details       调度函数
- *                在所有初始化结束后执行，函数正常情况下不退出
- * @param[in]     void
- *
- * @return        void
+ * 
+ * 
  */
 void taskSchedule(void)
 {
@@ -364,11 +377,8 @@ void taskSchedule(void)
 }
 
 /**
- * @details       初始化任务调度模块，主要负责全局变脸的初始化，和全局变量合法性检查
- *                需要在其他接口调用前使用
- * @param[in]     void
- *
- * @return        void
+ * 
+ * 
  */
 void taskInit(void)
 {
