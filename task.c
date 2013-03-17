@@ -70,15 +70,6 @@ static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
 	}
 }
 
-/** 
- * 
- * 
- */
-static void taskIdle(struct tcb * task)
-{
-	taskIdleHook(task->duration);
-}
-
 /**
  * 
  * 
@@ -225,14 +216,24 @@ void taskSchedule(void)
 /**
  * 
  * 
+ * @param task 
+ */
+static void taskIdle(struct tcb * task)
+{
+	taskIdleHook(task->duration);
+}
+
+/**
+ * 
+ * 
  */
 void taskInit(void)
 {
 	static struct tcb backgroundTask = {
 		.action = taskIdle,
-		.circle = (1 << (sizeof(time_t) * 8 - 1)) - 1,
-		.duration = (1 << (sizeof(time_t) * 8 - 1)) - 1,
-		.priority = 1 << (sizeof(int) * 8 - 1),
+		.circle = (1U << (sizeof(time_t) * 8 - 1)) - 1,
+		.duration = (1U << (sizeof(time_t) * 8 - 1)) - 1,
+		.priority = 1L << (sizeof(int) * 8 - 1),
 	};
 
 	SLIST_INSERT_HEAD(&g_priority, &backgroundTask, entires);
