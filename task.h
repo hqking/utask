@@ -26,7 +26,7 @@ struct tcb {
 typedef unsigned int			time_t;
 
 /* API */
-enum TASK_CODE taskRun(struct tcb *task);
+#define taskRun(task)	taskDelayedRun(task, 0)
 enum TASK_CODE taskDelayedRun(struct tcb *task, time_t t);
 enum TASK_CODE taskPause(struct tcb *task);
 enum TASK_CODE taskResume(struct tcb *task);
