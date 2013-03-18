@@ -27,9 +27,9 @@ static struct listHead g_priority = SLIST_HEAD_INITIALIZER(g_priority);
  */
 static time_t tickLeft(time_t after, time_t before)
 {
-	S32 left;
+	int left;
 	
-	left = (S32)(after - before);
+	left = (int)(after - before);
 	
 	if (left < 0L)
 		left = 0L;
@@ -77,6 +77,7 @@ static int taskCmp(struct tcb *tsk1, struct tcb *tsk2)
  */
 static void addPriorityQueue(struct tcb *task)
 {
+	struct tcb *tp;
 	struct tcb *prev;
 
 	task->queue = TASK_PRIORITY;
@@ -197,7 +198,7 @@ void taskSchedule(void)
 			taskLock();
 
 		} else {
-			SLIST_REMOVE_HEAD(&g_priority, entires);
+			SLIST_REMOVE_HEAD(&g_priority, entries);
 			task->queue = TASK_NONE;
 
 			taskUnlock();
@@ -236,5 +237,5 @@ void taskInit(void)
 		.priority = 1L << (sizeof(int) * 8 - 1),
 	};
 
-	SLIST_INSERT_HEAD(&g_priority, &backgroundTask, entires);
+	SLIST_INSERT_HEAD(&g_priority, &backgroundTask, entries);
 }

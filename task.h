@@ -8,10 +8,12 @@ enum TASK_CODE {
 	TSKRC_PENDING = -3,
 };
 
+typedef unsigned int			time_t;
+
 struct tcb {
-	const void (*action)(struct tcb *);
-	const time_t circle;
-	const time_t duration;
+	void (*action)(struct tcb *);
+	time_t circle;
+	time_t duration;
 	time_t until;
 	enum {
 		TASK_NONE,
@@ -21,8 +23,6 @@ struct tcb {
 	int priority;
 	SLIST_ENTRY(tcb) entries;
 };
-
-typedef unsigned int			time_t;
 
 /* API */
 #define taskRun(task)	taskDelayedRun(task, 0)
