@@ -8,13 +8,8 @@
  * 
  */
 #include <stdlib.h>
-#include "queue.h"
+#include "types.h"
 #include "pktbuf.h"
-
-typedef unsigned char	buf_t;
-typedef unsigned int	size_t;
-
-STAILQ_HEAD(pktList, pkt);
 
 struct pkt {
 	buf_t *payload;
@@ -22,58 +17,67 @@ struct pkt {
 	STAILQ_ENTRY(pkt) entries;
 };
 
-data_t * pktCreate(struct pktList *list, size_t len)
+buf_t * bufCreate(struct pktList *list, size_t len)
 {
-	data_t *buf;
-
-	buf = (data_t *)malloc(sizeof(len));
-
-	return buf;
+	return (buf_t *)malloc(sizeof(len));
 }
 
-void pktDelete(struct pktList *list, data_t *buf)
+void bufDelete(struct pktList *list, buf_t *buf)
 {
 	free(buf);
 }
 
 int pktAppend(struct pktList *list, buf_t *buf, size_t len)
 {
+	struct pktHead *head;
 	struct pkt *pkt;
 
 	pkt = (struct pkt *)malloc(sizeof(struct pkt));
 	if (pkt == NULL)
 		return -1;
 
+	head = &list->head;
+
 	pkt->payload = buf;
 	pkt->len = len;
 
 	/* lock */
-	if (STAILQ_EMPTY(list)) {
-		STAILQ_INSERT_HEAD(list, pkt, entries);
-		/* inform start send */
+	if (STAILQ_EMPTY(head)) {
+		STAILQ_INSERT_HEAD(head, pkt, entries);
+		/* unlock */
+		
+		if (list->start)
+			list->start(list, list->arg);
 	} else {
-		STAILQ_INSERT_TAIL(list, pkt, entries);
+		STAILQ_INSERT_TAIL(head, pkt, entries);
+		/* unlock */
 	}
-	/* unlock */
 
 	return 0;
 }
 
-data_t * pktFetch(struct pktList *list, size_t *len)
+buf_t * pktFetch(struct pktList *list, size_t *len)
 {
+	struct pktHead *head;
 	struct pkt *pkt;
-	data_t *buf;
+	buf_t *buf;
+
+	head = &list->head;
 
 	/* lock */
-	pkt = STAILQ_FIRST(list);
+	pkt = STAILQ_FIRST(head);
 
 	if (pkt) {
-		STIALQ_REMOVE_HEAD(list, entires);
+		STAILQ_REMOVE_HEAD(head, entries);
 	}
 	/* unlock */
 
-	if (pkt == NULL)
+	if (pkt == NULL) {
+		if (list->end)
+			list->end(list, list->arg);
+	
 		return NULL;
+	}
 
 	*len = pkt->len;
 	buf = pkt->payload;
@@ -83,11 +87,14 @@ data_t * pktFetch(struct pktList *list, size_t *len)
 	return buf;
 }
 
-data_t * pktPeek(struct pktList *list, size_t *len)
+buf_t * pktPeek(struct pktList *list, size_t *len)
 {
-        struct pkt *pkt;
+	struct pktHead *head;
+    struct pkt *pkt;
 
-	pkt = STIALQ_FIRST(list);
+    head = &list->head;
+
+	pkt = STAILQ_FIRST(head);
 
 	if (pkt == NULL)
 		return NULL;
@@ -97,7 +104,15 @@ data_t * pktPeek(struct pktList *list, size_t *len)
 	return pkt->payload;
 }
 
-void pktQueueInit(struct pktLIst *list)
+int pktHasData(struct pktList *list)
 {
-	STAILQ_INIT(list);
+	return STAILQ_EMPTY(&list->head) ? 0 : 1;
+}
+
+void pktQueueInit(struct pktList *list, pktEvent start, pktEvent end, void *arg)
+{
+	STAILQ_INIT(&list->head);
+	list->start = start;
+	list->end = end;
+	list->arg = arg;
 }

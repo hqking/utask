@@ -9,7 +9,6 @@
  */
 #include <stdlib.h>
 #include "assert.h"
-#include "queue.h"
 #include "task.h"
 
 SLIST_HEAD(listHead, tcb);
@@ -107,7 +106,7 @@ static void addPriorityQueue(struct tcb *task)
  */
 enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 {
-	if (task == NULL || task->action == NULL || delay >= 0)
+	if (task == NULL || task->action == NULL)
 		return TSKRC_INVALID;
 
 	if (task->queue == TASK_PRIORITY)
@@ -123,6 +122,30 @@ enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 
 	if (taskCmp(SLIST_FIRST(&g_priority), task) < 0) {
 		/* waken cpu from idle hook */		
+	}
+
+	return TSKRC_OK;
+}
+
+enum TASK_CODE taskCircleRun(struct tcb *task, time_t circle)
+{
+	if (task == NULL || task->action == NULL)
+		return TSKRC_INVALID;
+
+	if (task->queue == TASK_PRIORITY)
+		return TSKRC_ALREADY;
+
+	task->until = taskGetTick() + circle;
+	task->circle = circle;
+
+	if (task->queue == TASK_PENDING) {
+		return TSKRC_PENDING;
+	}
+
+	addPriorityQueue(task);
+
+	if (taskCmp(SLIST_FIRST(&g_priority), task) < 0) {
+		/* waken cpu from idle hook */
 	}
 
 	return TSKRC_OK;
@@ -211,7 +234,7 @@ void taskSchedule(void)
 			}
 		}
 	}
-	taskUnlock();
+	/* taskUnlock */
 }
 
 /**

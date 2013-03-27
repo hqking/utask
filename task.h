@@ -1,6 +1,8 @@
 #ifndef __TASK_H__
 #define __TASK_H__
 
+#include "queue.h"
+
 enum TASK_CODE {
 	TSKRC_OK = 0,
 	TSKRC_INVALID = -1,
@@ -27,6 +29,7 @@ struct tcb {
 /* API */
 #define taskRun(task)	taskDelayedRun(task, 0)
 enum TASK_CODE taskDelayedRun(struct tcb *task, time_t t);
+enum TASK_CODE taskCircleRun(struct tcb *task, time_t circle);
 enum TASK_CODE taskPause(struct tcb *task);
 enum TASK_CODE taskResume(struct tcb *task);
 void taskSchedule(void);
