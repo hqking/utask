@@ -18,6 +18,11 @@ typedef unsigned long		u32;
 typedef signed long			s32;
 typedef unsigned int		bool;
 
-typedef unsigned char	buf_t;
+typedef unsigned int		uint_t;
+
+typedef unsigned char		buf_t;
+
+#define true				1
+#define false				0
 
 #endif /* __TYPES_H__ */
