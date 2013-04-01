@@ -35,9 +35,13 @@ enum TASK_CODE taskResume(struct tcb *task);
 void taskSchedule(void);
 void taskInit(void);
 
+/* aux functions */
+time_t tickLeft(time_t after, time_t before);
+
 /* user implemented functions */
 extern time_t taskGetTick(void);
 extern void taskIdleHook(time_t);
+extern void taskWake(void);
 extern void taskLock(void);
 extern void taskUnlock(void);
 

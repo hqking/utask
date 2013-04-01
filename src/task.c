@@ -24,7 +24,7 @@ static struct listHead g_priority = SLIST_HEAD_INITIALIZER(g_priority);
  * 
  * @return 
  */
-static time_t tickLeft(time_t after, time_t before)
+time_t tickLeft(time_t after, time_t before)
 {
 	int left;
 	
@@ -121,7 +121,7 @@ enum TASK_CODE taskDelayedRun(struct tcb *task, time_t delay)
 	addPriorityQueue(task);
 
 	if (taskCmp(SLIST_FIRST(&g_priority), task) < 0) {
-		/* waken cpu from idle hook */		
+		taskWake();
 	}
 
 	return TSKRC_OK;
@@ -145,7 +145,7 @@ enum TASK_CODE taskCircleRun(struct tcb *task, time_t circle)
 	addPriorityQueue(task);
 
 	if (taskCmp(SLIST_FIRST(&g_priority), task) < 0) {
-		/* waken cpu from idle hook */
+		taskWake();
 	}
 
 	return TSKRC_OK;
