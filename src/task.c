@@ -255,8 +255,8 @@ void taskInit(void)
 {
 	static struct tcb backgroundTask = {
 		.action = taskIdle,
-		.circle = (1U << (sizeof(time_t) * 8 - 1)) - 1,
-		.duration = (1U << (sizeof(time_t) * 8 - 1)) - 1,
+		.circle = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
+		.duration = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
 		.priority = 1L << (sizeof(int) * 8 - 1),
 	};
 

@@ -10,7 +10,7 @@ enum TASK_CODE {
 	TSKRC_PENDING = -3,
 };
 
-typedef unsigned int			time_t;
+//typedef unsigned int			time_t;
 
 struct tcb {
 	void (*action)(struct tcb *);

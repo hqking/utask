@@ -4,7 +4,44 @@
 #include <unistd.h>
 #include <signal.h>
 #include <time.h>
-//#include "../../include/task.h"
+
+/* implementation */
+#include "../../src/task.c"
+
+static int g_wake;
+
+void taskLock(void)
+{
+}
+
+void taskUnlock(void)
+{
+}
+
+time_t taskGetTick(void)
+{
+  return time(NULL);
+}
+
+void taskIdleHook(time_t delay)
+{
+  time_t until;
+
+  until = time(NULL) + delay;
+
+  g_wake = 0;
+  while(until > time(NULL)) {
+    if (g_wake)
+      break;
+  }    
+}
+
+void taskWake(void)
+{
+  g_wake = 1;
+}
+
+/* testing file */
 
 static FILE *g_log;
 
@@ -15,8 +52,8 @@ static void isr_ctx(int sig)
 
 static void loop_ctx(void)
 {
-  //  taskInit();
-  // taskSchedule();
+  taskInit();
+  taskSchedule();
 }
 
 static void outsidEvents(pid_t pid)
