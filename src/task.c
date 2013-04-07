@@ -142,11 +142,11 @@ enum TASK_CODE taskCircleRun(struct tcb *task, time_t circle)
 		return TSKRC_PENDING;
 	}
 
-	addPriorityQueue(task);
-
 	if (taskCmp(SLIST_FIRST(&g_priority), task) < 0) {
 		taskWake();
 	}
+
+	addPriorityQueue(task);
 
 	return TSKRC_OK;
 }
@@ -216,11 +216,13 @@ void taskSchedule(void)
 		left = tickLeft(task->until, taskGetTick());
 
 		if (left > 0) {
+		  printf("left > 0\n");
 			taskUnlock();
 			taskIdleHook(left);
 			taskLock();
 
 		} else {
+		  printf("left <= 0\n");
 			SLIST_REMOVE_HEAD(&g_priority, entries);
 			task->queue = TASK_NONE;
 
@@ -255,10 +257,14 @@ void taskInit(void)
 {
 	static struct tcb backgroundTask = {
 		.action = taskIdle,
-		.circle = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
-		.duration = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
+		.circle = 1000,
+		//.circle = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
+		.duration = 100,
+		//.duration = (1UL << (sizeof(time_t) * 8 - 1)) - 1,
 		.priority = 1L << (sizeof(int) * 8 - 1),
 	};
+
+	backgroundTask.until = taskGetTick() + backgroundTask.circle;
 
 	SLIST_INSERT_HEAD(&g_priority, &backgroundTask, entries);
 }

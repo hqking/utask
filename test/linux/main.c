@@ -106,15 +106,15 @@ int main(int argc, char *argv[])
   logCreate();
 
   /* fork */
-  pid = fork();
-  if (pid == -1)
-    return -1;
+  /* pid = fork(); */
+  /* if (pid == -1) */
+  /*   return -1; */
 
-  if (pid == 0) {
+  /* if (pid == 0) { */
     loop_ctx();
-  } else {
-    outsidEvents(pid);
-  }
+  /* } else { */
+  /*   outsidEvents(pid); */
+  /* } */
 
   fclose(g_log);
 
